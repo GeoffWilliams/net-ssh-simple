@@ -485,7 +485,7 @@ module Net
       #
       # @see http://net-ssh.github.com/ssh/v2/api/classes/Net/SSH.html#M000002
       #      Net::SSH documentation for the 'opts'-hash
-      def ssh(host, cmd, opts={}, &block)
+      def ssh(host, cmd, opts={}, request_pty=false, &block)
         opts = @opts.merge(opts)
         with_session(host, opts) do |session|
           @result = Result.new(
@@ -495,6 +495,13 @@ module Net
             } )
 
           channel = session.open_channel do |chan|
+            if request_pty
+              channel.request_pty do |c_, success_|
+                if !success_
+                  raise Net::SSH::Simple::Error, 'Unable to allocate requested PTY'
+                end
+              end
+            end
             chan.exec cmd do |ch, success|
               @result[:success] = success
               ch.on_data do |c, data|
@@ -624,7 +631,8 @@ module Net
             block.call(session)
           end
         rescue => e
-          opts[:password].gsub!(/./,'*') if opts.include? :password
+          # gives error:  can't modify frozen String
+          #opts[:password].gsub!(/./,'*') if opts.include? :password
           @result[:exception] = e
           @result[:success] = false
           @result[:timed_out] = true if e.is_a? ::Timeout::Error
